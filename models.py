@@ -46,7 +46,10 @@ class Temp_closed(BaseModel):
     new_info: Optional[time]
 
 class Resort(BaseModel):
+    user: str
     name: str
+    country: str
+    last_update: Optional[datetime]
     closed_until: Optional[date]
     opened_until: Optional[date]
     temporarily_closed: Temp_closed

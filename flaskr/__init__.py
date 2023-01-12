@@ -1,4 +1,3 @@
-from sre_constants import SUCCESS
 from flask import Flask, request, abort
 from flask_cors import CORS
 from pymongo.collection import Collection
@@ -6,6 +5,7 @@ from pymongo import ReturnDocument
 from flask_pymongo import PyMongo
 from models import *
 from errors import *
+from auth import AuthError, requires_auth
 
 """
    .oooooo.                          .o88o.  o8o             
@@ -27,6 +27,18 @@ def create_app(test_config=None):
 
     CORS(app)
 
+    def after_request(res):
+        res.headers.add(
+            'Access-Control-Allow-Headers',
+            'Content-Type, Authorization'
+            )
+        res.headers.add(
+            'Access-Control-Allow-Methods',
+            'GET, POST, DELETE, PATCH, PUT'
+            )
+
+        return res
+
 
     """
   ooooooooo.                             .                      
@@ -42,6 +54,36 @@ def create_app(test_config=None):
 #       88__dP 88__   `Ybo." dP   Yb 88__dP   88   `Ybo." 
 #       88"Yb  88""   o.`Y8b Yb   dP 88"Yb    88   o.`Y8b 
 #       88  Yb 888888 8bodP'  YbodP  88  Yb   88   8bodP'
+
+    @app.route("/<string:resort>", methods=["POST"])
+    def create_resort(resort):
+        raw_resort = request.get_json()
+
+        if not raw_resort:
+            abort(422)
+        
+        # looking up if the name of these lifts already exists
+        all_resorts = resorts.find_one({'name': resort})
+        if all_resorts:
+            print('Resort with the name ' + raw_resort['name'] + ' already exists!')
+            abort(409)
+
+        resort_data = Resort(
+            user = raw_resort['user'],
+            name = raw_resort['name'],
+            country = raw_resort['country'], 
+            lifts = [],
+            working_hours = {'mon': {}, 'tue': {}, 'wed': {}, 'thu': {}, 'fri': {}, 'sat': {}, 'sun': {}},
+            temporarily_closed = {'working': False}
+            )
+        try:
+            insert_result = resorts.insert_one(resort_data.to_bson())
+            return jsonify({
+                'success': True,
+                'added': resort
+            })
+        except:
+            abort(500)
 
     @app.route("/<string:resort>", methods=["GET"])
     def get_resort(resort):
@@ -88,6 +130,17 @@ def create_app(test_config=None):
         except:
             abort(500)
 
+    @app.route("/<string:resort>", methods=["DELETE"])
+    def delete_resort(resort):
+        try:
+            resorts.delete_one({"name": resort})
+            return jsonify({
+                    "deleted": resort,
+                    'success': True
+                })
+        except:
+            abort(500)
+
 
 #       88     88 888888 888888 .dP"Y8 
 #       88     88 88__     88   `Ybo." 
@@ -99,7 +152,7 @@ def create_app(test_config=None):
     def new_lift(resort):
         raw_lift = request.get_json()
         raw_lift['working_hours'] = {'mon': {}, 'tue': {}, 'wed': {}, 'thu': {}, 'fri': {}, 'sat': {}, 'sun': {}}
-
+        print(resort)
         if not raw_lift:
             abort(422)
         
@@ -136,6 +189,7 @@ def create_app(test_config=None):
             abort(422)
 
         all_lifts = resorts.find_one_or_404({'name': resort})['lifts']
+        
         try:
             for l in raw_lifts:
                 for m in all_lifts:
@@ -151,6 +205,7 @@ def create_app(test_config=None):
                         })
             
             updated_lifts = resorts.find_one({'name': resort})['lifts']
+            updated_lifts.sort(key = lambda x : int(x["id"]))
             
             return jsonify({
                     'lifts': updated_lifts,
@@ -195,10 +250,12 @@ def create_app(test_config=None):
         except:
             abort(500)
 
-    # route for getting the date of lifts
+    # route for getting the data of lifts
     @app.route("/<string:resort>/lifts", methods=["GET"])
     def get_lifts(resort):
         lifts = resorts.find_one_or_404({'name': resort})['lifts']
+        
+        lifts.sort(key = lambda x : int(x["id"]))
 
         lift_count = len(lifts)
 
@@ -248,6 +305,8 @@ def create_app(test_config=None):
     @app.route("/<string:resort>/slopes", methods=["GET"])
     def get_slopes(resort):
         slopes = resorts.find_one_or_404({"name": resort})["slopes"]
+
+        slopes.sort(key = lambda x : int(x["id"]))
         slopes_count = len(slopes)
         if slopes_count == 0:
             abort(404)
@@ -282,6 +341,7 @@ def create_app(test_config=None):
                         })
             
             updated_slopes = resorts.find_one({'name': resort})['slopes']
+            updated_slopes.sort(key = lambda x : int(x["id"]))
             
             return jsonify({
                     'slopes': updated_slopes,
@@ -321,19 +381,6 @@ def create_app(test_config=None):
 
     # PUT vreme
     # GET vreme
-
-    # DELETE/REPLACE/UPDATE THIS ROUTE WHEN DONE!!!!!
-    @app.route("/<string:resort>", methods=["POST"])
-    def create_resort(resort):
-        
-        resort_data = Resort(
-            name = resort, 
-            lifts = [],
-            working_hours = {'mon': {}, 'tue': {}, 'wed': {}, 'thu': {}, 'fri': {}, 'sat': {}, 'sun': {}},
-            temporarily_closed = {'working': False}
-            )
-        
-        insert_result = resorts.insert_one(resort_data.to_bson())
 
     errors(app)
 

@@ -4,7 +4,6 @@ import os
 from jose import jwt
 from urllib.request import urlopen
 from flask import request
-from dotenv import find_dotenv, load_dotenv
 
 AUTH0_DOMAIN = os.getenv('AUTH0_DOMAIN')
 ALGORITMS = os.getenv('ALGORITHMS')

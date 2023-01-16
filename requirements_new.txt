@@ -1,5 +1,5 @@
 anyio==3.5.0
-click==8.1.2
+click==8.0.4
 colorama==0.4.4
 dnspython==2.2.1
 ecdsa==0.18.0

@@ -1,11 +1,12 @@
+import os
 from flask import Flask, request, abort
 from flask_cors import CORS
 from pymongo.collection import Collection
-from pymongo import ReturnDocument
+from pymongo import ReturnDocument, MongoClient
 from flask_pymongo import PyMongo
 from models import *
 from errors import *
-from auth import AuthError, requires_auth
+from auth import requires_auth
 
 """
    .oooooo.                          .o88o.  o8o             
@@ -18,15 +19,18 @@ from auth import AuthError, requires_auth
                                                    d"     YD  
                                                    "Y88888P'
 """
+MONGO_DB_USER = os.getenv('MONGO_DB_USER')
+MONGO_DB_PASSWORD = os.getenv('MONGO_DB_PASSWORD')
 
 def create_app(test_config=None):
     app = Flask(__name__)
-    app.config['MONGO_URI'] = "mongodb://localhost:27017/white-hill"
+    app.config['MONGO_URI'] = 'mongodb+srv://'+ MONGO_DB_USER + ':' + MONGO_DB_PASSWORD + '@cluster0.fl3oghq.mongodb.net/snow?retryWrites=true&w=majority'
     pymongo = PyMongo(app)
     resorts: Collection = pymongo.db.resorts
 
-    CORS(app)
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
+    @app.after_request
     def after_request(res):
         res.headers.add(
             'Access-Control-Allow-Headers',
@@ -64,6 +68,7 @@ def create_app(test_config=None):
         
         # looking up if the name of these lifts already exists
         all_resorts = resorts.find_one({'name': resort})
+        print(all_resorts)
         if all_resorts:
             print('Resort with the name ' + raw_resort['name'] + ' already exists!')
             abort(409)
@@ -100,7 +105,8 @@ def create_app(test_config=None):
         })
     
     @app.route("/<string:resort>", methods={"PATCH"})
-    def update_resort(resort):
+    @requires_auth('patch:resort')
+    def update_resort(payload, resort):
         resort_data = request.get_json()
 
         if not resort_data:
@@ -131,7 +137,8 @@ def create_app(test_config=None):
             abort(500)
 
     @app.route("/<string:resort>", methods=["DELETE"])
-    def delete_resort(resort):
+    @requires_auth('delete:resort')
+    def delete_resort(payload, resort):
         try:
             resorts.delete_one({"name": resort})
             return jsonify({
@@ -149,7 +156,8 @@ def create_app(test_config=None):
 
     # Route for adding new lifts for a specified resort
     @app.route("/<string:resort>/lifts", methods=["POST"])
-    def new_lift(resort):
+    @requires_auth('post:lift')
+    def new_lift(payload, resort):
         raw_lift = request.get_json()
         raw_lift['working_hours'] = {'mon': {}, 'tue': {}, 'wed': {}, 'thu': {}, 'fri': {}, 'sat': {}, 'sun': {}}
         print(resort)
@@ -182,7 +190,8 @@ def create_app(test_config=None):
 
     # Route for modifying working hours, notes ...
     @app.route("/<string:resort>/lifts", methods=['PUT'])
-    def update_working_hours(resort):
+    @requires_auth('put:lift')
+    def update_working_hours(payload, resort):
         raw_lifts = request.get_json()
 
         if not raw_lifts:
@@ -217,7 +226,8 @@ def create_app(test_config=None):
 
     # Route for changing name, type and capacity
     @app.route("/<string:resort>/lifts", methods=["PATCH"])
-    def update_lift(resort):
+    @requires_auth('patch:lift')
+    def update_lift(payload, resort):
         raw_lift = request.get_json()
 
         if not raw_lift:
@@ -276,7 +286,8 @@ def create_app(test_config=None):
 #       8bodP' 88ood8  YbodP  88     888888 8bodP' 
 
     @app.route("/<string:resort>/slopes", methods=["POST"])
-    def new_slope(resort):
+    @requires_auth('post:slope')
+    def new_slope(payload, resort):
         new_slope = request.get_json()
 
         if not new_slope:
@@ -319,7 +330,8 @@ def create_app(test_config=None):
         })
 
     @app.route("/<string:resort>/slopes", methods=['PUT'])
-    def update_slopes(resort):
+    @requires_auth('put:slope')
+    def update_slopes(payload, resort):
         raw_slopes = request.get_json()
 
         if not raw_slopes:
@@ -352,7 +364,8 @@ def create_app(test_config=None):
             abort(500)
 
     @app.route("/<string:resort>/slopes", methods=["PATCH"])
-    def update_slope(resort):
+    @requires_auth('patch:slope')
+    def update_slope(payload, resort):
         updated_slope = request.get_json()
         if not updated_slope:
             abort(422)
@@ -385,3 +398,9 @@ def create_app(test_config=None):
     errors(app)
 
     return app
+
+app = create_app()
+application = app
+
+if __name__ == '__main__':
+    app.run()
